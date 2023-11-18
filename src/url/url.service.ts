@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { CreateUrlDto } from './dto/create-url.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Url } from './entities/url.entity';
@@ -15,11 +19,38 @@ export class UrlService {
     const [short_url, hash] = new Helper().getSmallUrlAndHash(
       createUrlDto.long_url,
     );
+
+    const sameUrlExist = await this.urlRepository.findOne({
+      where: {
+        hash,
+      },
+    });
+
+    if (sameUrlExist) {
+      return sameUrlExist;
+    }
+
     const createUrlObject = { ...createUrlDto, short_url, hash };
+    // change this to findOrCreate Method
     return this.urlRepository.save(this.urlRepository.create(createUrlObject));
   }
 
-  findOne(id: string) {
-    return `This action returns a #${id} url`;
+  async getLongUrl(short_url: string): Promise<string> {
+    try {
+      const urlEntity = await this.urlRepository.findOne({
+        where: {
+          short_url,
+        },
+      });
+
+      if (!urlEntity) {
+        throw new NotFoundException('Short URL not found');
+      }
+
+      return urlEntity.long_url;
+    } catch (error) {
+      // Handle database query error
+      throw new InternalServerErrorException('Error fetching long URL');
+    }
   }
 }
